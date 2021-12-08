@@ -2,7 +2,7 @@
     "memory_grow_mstore" : {
         "_info" : {
             "comment" : "",
-            "filling-rpc-server" : "evm version 1.10.14-unstable-a7046a53-20211202",
+            "filling-rpc-server" : "evm version 1.10.13-stable-7a0c19f8",
             "filling-tool-version" : "retesteth-0.2.1-difficulty+commit.1ee81863.Linux.g++",
             "generatedTestHash" : "d24c88da01fe9878a699e5845ab41bb61d52107b159c112620dcb5cadcf96a5a",
             "labels" : {
@@ -12,8 +12,8 @@
                 "3" : ":label by32"
             },
             "lllcversion" : "Error getting LLLC Version",
-            "source" : "src/GeneralStateTestsFiller/stExample/memory_grow_mstoreFiller.yml",
-            "sourceHash" : "12bae942e059d9016995757ba2718ed8bbd7cef503d96b7e38e3fffd7d076ed9"
+            "source" : "tmp/micro/memory_grow_mstoreFiller.yml",
+            "sourceHash" : "682b898d578db8d23f2ae8e756320d2afa73b6d219522a9b9fad49747e5adfc3"
         },
         "env" : {
             "currentBaseFee" : "0x01",
