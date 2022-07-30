@@ -1,9 +1,14 @@
 
 MAX_LIMBS = 11
 
-PUSH3_POP_ITER_COUNT = 0
-EVMMAX_ARITH_ITER_COUNT = 0
-raise Exception("TODO^")
+EVMMAX_ARITH_OPS = {
+    "SETMODMAX": "0c",
+    "ADDMODMAX": "0d",
+    "SUBMODMAX": "0e",
+    "MULMONTMAX": "0f",
+}
+
+LIMB_SIZE = 8
 
 EVMMAX_ARITH_OPS = {
     "SETMODMAX": "0c",
@@ -12,8 +17,28 @@ EVMMAX_ARITH_OPS = {
     "MULMONTMAX": "0f",
 }
 
+EVM_OPS = {
+    "MSTORE": "52" # TODO
+}
+
+def pad_be_limb(word: str):
+    assert len(word) <= LIMB_SIZE * 2, "invalid length"
+    
+    if len(word) < LIMB_SIZE * 2:
+        return '0'*(LIMB_SIZE * 2 - len(word)) + word
+    else:
+        return word
+
+def reverse_endianess(word: str):
+    assert len(word) == LIMB_SIZE * 2, "invalid length"
+
+    result = ""
+    for i in reversed(range(0, len(word), 2)):
+        result += word[i:i+2]
+    return result
+
 # convert an int a little-endian list of 64bit-value limbs
-def int_to_evmmax_limbs(val: int, limb_count: int) -> [int]:
+def int_to_be_limbs(val: int, limb_count: int) -> [int]:
     if val == 0:
         return [0] * limb_count
 
@@ -21,56 +46,47 @@ def int_to_evmmax_limbs(val: int, limb_count: int) -> [int]:
     while val != 0:
         limb = val % (1 << 64)
         val >>= 64
-        result.push(limb)
+        result.append(hex(limb)[2:])
 
     if len(result) < limb_count:
-        result = result + [0] * (limb_count - len(result))
-    return result
+        result = [0] * (limb_count - len(result)) + result
 
-def gen_mstore_evmmax_elem(val: int) -> str:
-    limbs = int_to_evmmax_limbs(item)
+    return [pad_be_limb(limb) for limb in reversed(result)]
+
+def gen_push_int(val: int) -> str:
+    literal = hex(val)[2:]
+    if len(literal) % 2 == 1:
+        literal = "0" + literal
+    return gen_push_literal(literal)
+
+def gen_push_literal(val: str) -> str:
+    assert len(val) <= 64, "val is too big"
+    assert len(val) % 2 == 0, "val must be even length"
+    push_start = 0x60
+    push_op = hex(push_start - 1 + int(len(val) / 2))[2:]
+
+    assert len(push_op) == 2, "bug"
+
+    return push_op + val
+
+def gen_mstore_literal(val: str, offset: int) -> str:
+    return gen_push_literal(val) + gen_push_int(offset) + EVM_OPS["MSTORE"]
+
+def gen_mstore_evmmax_elem(dst_slot: int, val: int, limb_count: int) -> str:
+    assert dst_slot >= 0 and dst_slot < 11, "invalid dst_slot"
+
+    limbs = int_to_be_limbs(val, limb_count)
     evm_word = ""
-    for i in range(limbs):
-        import pdb; pdb.set_trace()
-        evm_word += limbs[i] # TODO
+    result = ""
+    offset = dst_slot * limb_count * LIMB_SIZE
+    for i in range(len(limbs)):
+        evm_word += limbs[i]
         if i != 0 and i % 4 == 0:
-            result += gen_mstore_word(evm_word, offset)
-            evm_word = 0
+            result += gen_mstore_literal(evm_word, offset)
+            evm_word = ""
             offset += 32
-    result += gen_mstore_word(evm_word, offset)
+    result += gen_mstore_literal(evm_word, offset)
     return result
-
-def gen_mstore(dst: int) -> str:
-    pass
-
-def calc_limb_count(num: int) -> int:
-    pass
-
-def gen_setmod(mod: int, slot: int) -> str:
-    assert mod % 2 != 0, "modulus must be odd"
-    assert (len(hex(mod)) - 2) / 64 < MAX_LIMBS, "modulus would occupy more than MAX_LIMBS 64bit limbs"
-    assert slot < 256 and slot >= 0, "slot must be gte to 0 and less than 256"
-
-    evmmax_limb_count = calc_limb_count(mod)
-    evm_words = []
-    offset = slot * evmmax_limb_count
-    result = ""
-    
-    for word in evm_words:
-        result += gen_push_word(word) + gen_mstore(offset)
-
-    return result
-
-def gen_push3_pop_loop_body(num_iterations: int) -> str:
-    result = ""
-    for i in range(num_iterations):
-        result += gen_push3_zero() + gen_pop()
-
-def gen_push3_pop_loop_benchmark() -> str:
-    return gen_loop().format("", gen_push3_pop_loop_body(PUSH3_POP_ITER_COUNT))
-
-def gen_loop() -> str:
-    return "{}7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff01{}60010180602157"
 
 def gen_arith_loop_benchmark(op: str, limb_count: str) -> str:
     mod = gen_mod(limb_count)
@@ -90,13 +106,6 @@ def gen_arith_loop_benchmark(op: str, limb_count: str) -> str:
 
     return gen_loop().format(bench_start, loop_body)
 
-def main():
-    for op_name in EVMMAX_OPS.keys():
-        with open("benchmarks/{}-loop.hex", "w") as f:
-            f.write(gen_arith_loop_benchmark(op_name))
-
-    with open("benchmarks/push3-pop-loop.hex", "w") as f:
-        f.write(gen_push3_pop_loop_benchmark())
-
-if __name__ == "__main__":
-    main()
+def gen_loop() -> str:
+    return "{}7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff01{}60010180602157"
+import pdb; pdb.set_trace()
