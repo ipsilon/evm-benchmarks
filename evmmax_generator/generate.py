@@ -1,3 +1,4 @@
+import math
 
 EVMMAX_ARITH_ITER_COUNT = 1
 
@@ -58,10 +59,13 @@ def int_to_be_limbs(val: int, limb_count: int) -> [int]:
     while val != 0:
         limb = val % (1 << 64)
         val >>= 64
-        result.append(hex(limb)[2:])
+        limb_hex = hex(limb)[2:]
+        if len(limb_hex) < LIMB_SIZE * 2:
+            limb_hex = ((LIMB_SIZE * 2) - len(limb_hex)) * '0' + limb_hex
+        result.append(limb_hex)
 
     if len(result) < limb_count:
-        result = [0] * (limb_count - len(result)) + result
+        result = result + ['0'] * (limb_count - len(result))
 
     return [pad_be_limb(limb) for limb in reversed(result)]
 
@@ -99,10 +103,13 @@ def gen_mstore_evmmax_elem(dst_slot: int, val: int, limb_count: int) -> str:
     for i in range(len(limbs)):
         if i != 0 and i % 4 == 0:
             result += gen_mstore_literal(evm_word, offset)
-            evm_word = limbs[i]
+            evm_word = limbs[len(limbs) - i - 1]
             offset += 32
         else:
-            evm_word += limbs[i]
+            evm_word += limbs[len(limbs) - i - 1]
+
+    if len(evm_word) < 64:
+        evm_word = evm_word + "0" * (64 - len(evm_word))
     result += gen_mstore_literal(evm_word, offset)
     return result
 
@@ -121,16 +128,37 @@ def gen_encode_evmmax_bytes(*args):
 def gen_setmod(slot: int, mod: int) -> str:
     limb_count = calc_limb_count(mod)
     result = gen_mstore_evmmax_elem(slot, mod, limb_count)
-    result += gen_push_literal(gen_encode_evmmax_bytes(0, limb_count))
+    result += gen_push_literal(gen_encode_evmmax_bytes(limb_count, slot))
     result += SETMOD_OP
     return result
 
-# return largest-possible mod representable with a given limb count
+# return modulus roughly in the middle of the range that can be represented with limb_count
 def gen_mod(limb_count: int) -> int:
-    return (1 << (limb_count * LIMB_SIZE * 8)) - 1
+    mod = (1 << ((limb_count - 1) * LIMB_SIZE * 8) + int((LIMB_SIZE * 8) / 2)) - 1
+    return mod
 
+def worst_case_mulmontmax_input(limb_count: int) -> int:
+    mod = gen_mod(limb_count)
+    r = 1 << (limb_count * LIMB_SIZE * 8)
+    r_inv = pow(-mod, -1, r)
+    
+    # res = math.ceil(math.sqrt((mod * r) / (mod * r_inv + 1))) 
+    return mod - 1#res
+
+# generate the slowest inputs for the maximum modulus representable by limb_count limbs
 def gen_evmmax_worst_input(op: str, limb_count: int) -> (int, int):
-    return 0, 0
+    if op == "MULMONTMAX":
+        # TODO generate inputs to make the final subtraction happen
+        # want ((x * y * n_inv) * mod + x * y) / R < N
+        val = worst_case_mulmontmax_input(limb_count)
+        # TODO yoloing here
+        return val, val>>16
+    elif op == "ADDMODMAX":
+        pass
+    elif op == "SUBMODMAX":
+        pass
+    else:
+        raise Exception("unknown evmmax arith op")
 
 def gen_evmmax_op(op: str, out_slot: int, x_slot: int, y_slot: int) -> str:
     return gen_push_literal(gen_encode_evmmax_bytes(out_slot, x_slot, y_slot)) + EVMMAX_ARITH_OPS[op]
@@ -143,6 +171,7 @@ def gen_arith_loop_benchmark(op: str, limb_count: str) -> str:
     expand_memory = gen_mstore_int(end_mem, 0)
 
     x_input, y_input = gen_evmmax_worst_input(op, limb_count)
+    #import pdb; pdb.set_trace()
     store_inputs = gen_mstore_evmmax_elem(1, x_input, limb_count) + gen_mstore_evmmax_elem(2, y_input, limb_count)
     
     bench_start = expand_memory + setmod + store_inputs 
@@ -156,5 +185,4 @@ def gen_arith_loop_benchmark(op: str, limb_count: str) -> str:
 def gen_loop() -> str:
     return "{}7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff01{}60010180602157"
 
-res = gen_arith_loop_benchmark("MULMONTMAX", 5)
-import pdb; pdb.set_trace()
+print("0x"+gen_arith_loop_benchmark("MULMONTMAX", 5))
