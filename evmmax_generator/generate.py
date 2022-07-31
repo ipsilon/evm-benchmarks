@@ -163,6 +163,8 @@ def gen_evmmax_worst_input(op: str, limb_count: int) -> (int, int):
 def gen_evmmax_op(op: str, out_slot: int, x_slot: int, y_slot: int) -> str:
     return gen_push_literal(gen_encode_evmmax_bytes(out_slot, x_slot, y_slot)) + EVMMAX_ARITH_OPS[op]
 
+MAX_CONTRACT_SIZE = 24576
+
 def gen_arith_loop_benchmark(op: str, limb_count: str) -> str:
     mod = gen_mod(limb_count)
     setmod = gen_setmod(0, mod)
@@ -177,12 +179,19 @@ def gen_arith_loop_benchmark(op: str, limb_count: str) -> str:
     bench_start = expand_memory + setmod + store_inputs 
     loop_body = ""
 
-    for i in range(EVMMAX_ARITH_ITER_COUNT):
+    empty_bench_len = int(len(gen_loop().format(bench_start, "", gen_push_int(258))) / 2)
+    free_size = MAX_CONTRACT_SIZE - empty_bench_len
+    iter_size = 5 # PUSH3 + 3byte immediate + EVMMAX_ARITH_OPCODE
+    iter_count = math.floor(free_size / 5)
+    for i in range(iter_count):
         loop_body += gen_evmmax_op(op, 0, 1, 2)
 
-    return gen_loop().format(bench_start, loop_body)
+    # TODO don't hardcode jumpdest pc (258)
+    res = gen_loop().format(bench_start, loop_body, gen_push_int(258))
+    assert len(res) / 2 <= MAX_CONTRACT_SIZE, "benchmark greater than max contract size"
+    return res
 
 def gen_loop() -> str:
-    return "{}7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff01{}60010180602157"
+    return "{}7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff015b{}60010180{}57"
 
 print("0x"+gen_arith_loop_benchmark("MULMONTMAX", 5))
