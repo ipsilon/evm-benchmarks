@@ -1,0 +1,3 @@
+[submodule "evmmax_generator/go-ethereum"]
+	path = evmmax_generator/go-ethereum
+	url = https://github.com/jwasinger/go-ethereum

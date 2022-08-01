@@ -25,7 +25,8 @@ EVMMAX_ARITH_OPS = {
 }
 
 EVM_OPS = {
-    "MSTORE": "52" # TODO
+    "POP": "50",
+    "MSTORE": "52",
 }
 
 def reverse_endianess(word: str):
@@ -205,20 +206,26 @@ def gen_arith_loop_benchmark(op: str, limb_count: str) -> str:
         loop_body += gen_evmmax_op(op, 0, 1, 2)
         inner_loop_evmmax_op_count += 1
 
-    loop_iterations = 256 # TODO verify this
-    inner_loop_evmmax_op_count *= loop_iterations
-
     res = gen_loop().format(bench_start, loop_body, gen_push_int(int(len(bench_start) / 2) + 33))
     assert len(res) / 2 <= MAX_CONTRACT_SIZE, "benchmark greater than max contract size"
-    return res, inner_loop_evmmax_op_count
+    return res, inner_loop_evmmax_op_count 
 
 def gen_loop() -> str:
     return "{}7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff015b{}60010180{}57"
 
-def bench_geth_evmmax(arith_op_name: str, limb_count: int) -> (int, int):
-    bench_code, evmmax_op_count = gen_arith_loop_benchmark(arith_op_name, limb_count)
+def gen_push3_pop_loop_benchmark(count: int) -> str:
+    loop_body = ""
+    for i in range(count):
+        loop_body += gen_push_literal(gen_encode_evmmax_bytes(1, 2, 3))
+        loop_body += EVM_OPS["POP"]
+
+    return gen_loop().format("", loop_body, gen_push_int(33))
+
+# bench some evm bytecode and return the runtime in ns
+
+def bench_geth(code: str) -> int:
     geth_exec = os.path.join(os.getcwd(), "go-ethereum/build/bin/evm")
-    geth_cmd = "{} --code {} --bench run".format(geth_exec, bench_code)
+    geth_cmd = "{} --code {} --bench run".format(geth_exec, code)
     result = subprocess.run(geth_cmd.split(' '), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     if result.returncode != 0:
         raise Exception("geth exec error: {}".format(result.stderr))
@@ -232,7 +239,13 @@ def bench_geth_evmmax(arith_op_name: str, limb_count: int) -> (int, int):
     else:
         raise Exception("unknown timestamp ending: {}".format(exec_time))
 
-    return exec_time, evmmax_op_count
+    return exec_time
+
+def bench_geth_evmmax(arith_op_name: str, limb_count: int) -> (int, int):
+    bench_code, evmmax_op_count = gen_arith_loop_benchmark(arith_op_name, limb_count)
+
+    return bench_geth(bench_code), evmmax_op_count
+
 
 if __name__ == "__main__":
     #if len(sys.argv[1:]) != 2:
@@ -246,12 +259,15 @@ if __name__ == "__main__":
     #if limb_count < 0 or limb_count > 11:
     #    raise Exception("must choose limb count between 1 and 11")
 
+    LOOP_ITERATIONS = 256 # TODO check this
+
     for arith_op_name in ["ADDMODMAX", "SUBMODMAX", "MULMONTMAX"]:
         for limb_count in range(1,12):
             evmmax_bench_time, evmmax_op_count = bench_geth_evmmax(arith_op_name, limb_count) 
 
-            push3_pop_bench_time = 0 # TODO bench_geth_push3_pop(evmmax_op_count)
+            push3_pop_bench_time = bench_geth(gen_push3_pop_loop_benchmark(evmmax_op_count))
             setmod_est_time = 0 # TODO
 
-            est_time = (evmmax_bench_time - push3_pop_bench_time - setmod_est_time) / evmmax_op_count
+            est_time = math.ceil((evmmax_bench_time - push3_pop_bench_time - setmod_est_time) / (evmmax_op_count * LOOP_ITERATIONS))
             print("{} - {} limbs - {} ns/op".format(arith_op_name, limb_count, est_time))
+        print()
