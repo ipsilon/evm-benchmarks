@@ -72,7 +72,7 @@ def int_to_evm_words(val: int, evm384_limb_count: int) -> [str]:
         result.append(limb_hex)
 
     if len(result) * 32 < evm384_limb_count * LIMB_SIZE:
-        result = ['00'] * math.ceil((limb_count * LIMB_SIZE - len(result) * 32) / 32) + result
+        result = ['00'] * math.ceil((evm384_limb_count * LIMB_SIZE - len(result) * 32) / 32) + result
 
     return list(reversed(result))
 
@@ -140,21 +140,22 @@ def gen_setmod(slot: int, mod: int) -> str:
     return result
 
 # return modulus roughly in the middle of the range that can be represented with limb_count
+#def gen_mod(limb_count: int) -> int:
+#    mod = (1 << ((limb_count - 1) * LIMB_SIZE * 8 + 8)) - 1
+#    return mod
+
 def gen_mod(limb_count: int) -> int:
-    mod = (1 << ((limb_count - 1) * LIMB_SIZE * 8 + 8)) - 1
-    return mod
+    return (1 << (limb_count * LIMB_SIZE * 8)) - 1
 
 def worst_case_mulmontmax_input(limb_count: int) -> (int, int):
     mod = gen_mod(limb_count)
     r = 1 << (limb_count * LIMB_SIZE * 8)
     r_inv = pow(-mod, -1, r)
     
-    # TODO figure this out
-
-    # choose x == y: (x**2 * n_inv * mod + x ** 2) / R < N
-    #return res
-    # import pdb; pdb.set_trace()
-    return mod - 1, mod - 1
+    # TODO this is the "pseudo worst-case" input for the CIOS algorithm from gnark-crypto
+    # It does a final subtraction, but the final check if output>modulus is determined because
+    # the output occupies limb_count + 1 limbs
+    return 1, 1
 
 def worst_case_addmodmax_inputs(limb_count: int) -> (int, int):
     mod = gen_mod(limb_count)
@@ -198,7 +199,9 @@ def gen_arith_loop_benchmark(op: str, limb_count: str) -> str:
     empty_bench_len = int(len(gen_loop().format(bench_start, "", gen_push_int(258))) / 2)
     free_size = MAX_CONTRACT_SIZE - empty_bench_len
     iter_size = 5 # PUSH3 + 3byte immediate + EVMMAX_ARITH_OPCODE
-    iter_count = math.floor(free_size / 5)
+    # iter_count = math.floor(free_size / 5)
+    # import pdb; pdb.set_trace()
+    iter_count = 5000
 
     inner_loop_evmmax_op_count = 0
 
@@ -207,7 +210,7 @@ def gen_arith_loop_benchmark(op: str, limb_count: str) -> str:
         inner_loop_evmmax_op_count += 1
 
     res = gen_loop().format(bench_start, loop_body, gen_push_int(int(len(bench_start) / 2) + 33))
-    assert len(res) / 2 <= MAX_CONTRACT_SIZE, "benchmark greater than max contract size"
+    # assert len(res) / 2 <= MAX_CONTRACT_SIZE, "benchmark greater than max contract size"
     return res, inner_loop_evmmax_op_count 
 
 def gen_loop() -> str:
@@ -247,21 +250,10 @@ def bench_geth_evmmax(arith_op_name: str, limb_count: int) -> (int, int):
     return bench_geth(bench_code), evmmax_op_count
 
 
-if __name__ == "__main__":
-    #if len(sys.argv[1:]) != 2:
-    #    raise Exception("must provide inputs op (MULMONTMAX,ADDMODMAX,SUBMODMAX) limbCount (1-11)")
+def default_run():
+    LOOP_ITERATIONS = 255 # TODO check this
 
-    #op = sys.argv[1]
-    #if op != "ADDMODMAX" and op != "SUBMODMAX" and op != "MULMONTMAX":
-    #    raise Exception("unknown op")
-
-    #limb_count = int(sys.argv[2])
-    #if limb_count < 0 or limb_count > 11:
-    #    raise Exception("must choose limb count between 1 and 11")
-
-    LOOP_ITERATIONS = 256 # TODO check this
-
-    for arith_op_name in ["ADDMODMAX", "SUBMODMAX", "MULMONTMAX"]:
+    for arith_op_name in ["MULMONTMAX"]: #["ADDMODMAX", "SUBMODMAX", "MULMONTMAX"]:
         for limb_count in range(1,12):
             evmmax_bench_time, evmmax_op_count = bench_geth_evmmax(arith_op_name, limb_count) 
 
@@ -271,3 +263,23 @@ if __name__ == "__main__":
             est_time = math.ceil((evmmax_bench_time - push3_pop_bench_time - setmod_est_time) / (evmmax_op_count * LOOP_ITERATIONS))
             print("{} - {} limbs - {} ns/op".format(arith_op_name, limb_count, est_time))
         print()
+
+if __name__ == "__main__":
+    if len(sys.argv) == 1:
+        default_run()
+    elif len(sys.argv) >= 2:
+        op = sys.argv[1]
+        if op != "ADDMODMAX" and op != "SUBMODMAX" and op != "MULMONTMAX":
+            raise Exception("unknown op")
+
+        limb_count = int(sys.argv[2])
+        if limb_count < 0 or limb_count > 11:
+            raise Exception("must choose limb count between 1 and 11")
+
+        if sys.argv[3] == "dumpgethcmd":
+            bench_code, evmmax_op_count = gen_arith_loop_benchmark(op, limb_count)
+            print(bench_code)
+
+    else:
+        print("too many args")
+
