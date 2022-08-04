@@ -192,8 +192,11 @@ def gen_arith_loop_benchmark(op: str, limb_count: str) -> str:
 
     x_input, y_input = gen_evmmax_worst_input(op, limb_count)
     store_inputs = gen_mstore_evmmax_elem(1, x_input, limb_count) + gen_mstore_evmmax_elem(2, y_input, limb_count)
+    x2 = (mod - 1) >> 63
+    y2 = (mod - 1) >> 63
+    store_inputs2 = gen_mstore_evmmax_elem(3, x_input, limb_count) + gen_mstore_evmmax_elem(4, y_input, limb_count)
     
-    bench_start = setmod + store_inputs 
+    bench_start = setmod + store_inputs + store_inputs2
     loop_body = ""
 
     empty_bench_len = int(len(gen_loop().format(bench_start, "", gen_push_int(258))) / 2)
@@ -219,7 +222,11 @@ def gen_loop() -> str:
 def gen_push3_pop_loop_benchmark(count: int) -> str:
     loop_body = ""
     for i in range(count):
-        loop_body += gen_push_literal(gen_encode_evmmax_bytes(1, 2, 3))
+        if i % 2 == 0:
+            loop_body += gen_push_literal(gen_encode_evmmax_bytes(1, 2, 5))
+        else:
+            loop_body += gen_push_literal(gen_encode_evmmax_bytes(3, 4, 5))
+
         loop_body += EVM_OPS["POP"]
 
     return gen_loop().format("", loop_body, gen_push_int(33))
@@ -249,11 +256,11 @@ def bench_geth_evmmax(arith_op_name: str, limb_count: int) -> (int, int):
 
     return bench_geth(bench_code), evmmax_op_count
 
-
 def default_run():
-    LOOP_ITERATIONS = 255 # TODO check this
+    LOOP_ITERATIONS = 255
 
-    for arith_op_name in ["MULMONTMAX"]: #["ADDMODMAX", "SUBMODMAX", "MULMONTMAX"]:
+    print("op name, limb count, estimated runtime (ns)")
+    for arith_op_name in ["ADDMODMAX", "SUBMODMAX", "MULMONTMAX"]:
         for limb_count in range(1,12):
             evmmax_bench_time, evmmax_op_count = bench_geth_evmmax(arith_op_name, limb_count) 
 
@@ -261,8 +268,9 @@ def default_run():
             setmod_est_time = 0 # TODO
 
             est_time = math.ceil((evmmax_bench_time - push3_pop_bench_time - setmod_est_time) / (evmmax_op_count * LOOP_ITERATIONS))
-            print("{} - {} limbs - {} ns/op".format(arith_op_name, limb_count, est_time))
-        print()
+            #print("{} - {} limbs - {} ns/op".format(arith_op_name, limb_count, est_time))
+            print("{},{},{}".format(arith_op_name, limb_count, est_time))
+        #print()
 
 if __name__ == "__main__":
     if len(sys.argv) == 1:
