@@ -234,7 +234,11 @@ def gen_push3_pop_loop_benchmark(count: int) -> str:
 # bench some evm bytecode and return the runtime in ns
 
 def bench_geth(code: str) -> int:
-    geth_exec = os.path.join(os.getcwd(), "go-ethereum/build/bin/evm")
+    geth_path = "go-ethereum/build/bin/evm"
+    if os.getenv('GETH_EVM') != None:
+        geth_path = os.getenv('GETH_EVM')
+
+    geth_exec = os.path.join(os.getcwd(), geth_path)
     geth_cmd = "{} --code {} --bench run".format(geth_exec, code)
     result = subprocess.run(geth_cmd.split(' '), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     if result.returncode != 0:
@@ -245,23 +249,37 @@ def bench_geth(code: str) -> int:
     if exec_time.endswith("ms"):
         exec_time = int(float(exec_time[:-2]) * 1000000)
     elif exec_time.endswith("s"):
+        import pdb; pdb.set_trace()
         exec_time = int(float(exec_time[:-1]) * 1000000 * 1000)
     else:
         raise Exception("unknown timestamp ending: {}".format(exec_time))
 
     return exec_time
 
+LOOP_ITERATIONS = 255
+
 def bench_geth_evmmax(arith_op_name: str, limb_count: int) -> (int, int):
     bench_code, evmmax_op_count = gen_arith_loop_benchmark(arith_op_name, limb_count)
 
     return bench_geth(bench_code), evmmax_op_count
 
+def bench_run(benches):
+    for op_name, limb_count_min, limb_count_max in benches:
+        for i in range(limb_count_min, limb_count_max + 1):
+            evmmax_bench_time, evmmax_op_count = bench_geth_evmmax(op_name, i) 
+
+            push3_pop_bench_time = bench_geth(gen_push3_pop_loop_benchmark(evmmax_op_count))
+            setmod_est_time = 0 # TODO
+
+            est_time = math.ceil((evmmax_bench_time - push3_pop_bench_time - setmod_est_time) / (evmmax_op_count * LOOP_ITERATIONS))
+            #print("{} - {} limbs - {} ns/op".format(arith_op_name, limb_count, est_time))
+            print("{},{},{}".format(op_name, limb_count, est_time))
+
 def default_run():
-    LOOP_ITERATIONS = 255
 
     print("op name, limb count, estimated runtime (ns)")
-    for arith_op_name in ["ADDMODMAX", "SUBMODMAX", "MULMONTMAX"]:
-        for limb_count in range(1,12):
+    for arith_op_name in ["MULMONTMAX"]: #["ADDMODMAX", "SUBMODMAX", "MULMONTMAX"]:
+        for limb_count in range(1, 12):
             evmmax_bench_time, evmmax_op_count = bench_geth_evmmax(arith_op_name, limb_count) 
 
             push3_pop_bench_time = bench_geth(gen_push3_pop_loop_benchmark(evmmax_op_count))
@@ -281,12 +299,16 @@ if __name__ == "__main__":
             raise Exception("unknown op")
 
         limb_count = int(sys.argv[2])
-        if limb_count < 0 or limb_count > 11:
-            raise Exception("must choose limb count between 1 and 11")
+        if limb_count < 0 or limb_count > 12:
+            raise Exception("must choose limb count between 1 and 12")
 
-        if sys.argv[3] == "dumpgethcmd":
+        if len(sys.argv) == 4:
+            if sys.argv[3] == "dumpgethcmd":
+                bench_code, evmmax_op_count = gen_arith_loop_benchmark(op, limb_count)
+                print(bench_code)
+        else:
             bench_code, evmmax_op_count = gen_arith_loop_benchmark(op, limb_count)
-            print(bench_code)
+            bench_run([(op, limb_count, limb_count)])
 
     else:
         print("too many args")
