@@ -276,9 +276,8 @@ def bench_run(benches):
             print("{},{},{}".format(op_name, limb_count, est_time))
 
 def default_run():
-
-    print("op name, limb count, estimated runtime (ns)")
-    for arith_op_name in ["MULMONTMAX"]: #["ADDMODMAX", "SUBMODMAX", "MULMONTMAX"]:
+    #print("op name, limb count, estimated runtime (ns)")
+    for arith_op_name in ["ADDMODMAX", "SUBMODMAX", "MULMONTMAX"]:
         for limb_count in range(1, 12):
             evmmax_bench_time, evmmax_op_count = bench_geth_evmmax(arith_op_name, limb_count) 
 
