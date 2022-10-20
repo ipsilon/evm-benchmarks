@@ -2,6 +2,12 @@
 # Copyright 2021 The EVM Benchmarks Authors.
 # SPDX-License-Identifier: Apache-2.0
 
+# Geth evm tool download URL
+EVM_DOWNLOAD_URL := https://gethstore.blob.core.windows.net/builds/geth-alltools-linux-amd64-1.10.25-69568c55.tar.gz
+
+# Retesteth tool download URL
+RETESTETH_DOWNLOAD_URL := http://retesteth.ethdevops.io/release/0.2.2-merge/ubuntu-18.04.3/retesteth-0.2.2-merge-ubuntu-18.04.3
+
 # Directory for tools
 BIN_DIR := bin
 
@@ -38,7 +44,7 @@ ${RETESTETH_CONFIG_DIR}:
 	@echo Generating retesteth config dir at $@
 	${RETESTETH} -- --datadir $@ 2>/dev/null >/dev/null || true
 	@echo Patching t8ntool config with '${EVM}'
-	sed -i 's|/bin/evm|$(abspath ${EVM})|g' $@/t8ntool/start.sh
+	sed -i 's|evm|$(abspath ${EVM})|g' $@/t8ntool/start.sh
 
 # Generate the State Test fillers out of benchmark source files.
 ${TMP_DIR}/%Filler.yml: ${SRC_DIR}/%.yml
@@ -56,13 +62,13 @@ clean:
 # Download the retesteth tool.
 ${RETESTETH}:
 	mkdir -p $(dir $@)
-	curl http://retesteth.ethdevops.io/release/0.2.1-difficulty/ubuntu-18.04.3/retesteth-0.2.1-difficulty-ubuntu-18.04.3 > $@
+	curl ${RETESTETH_DOWNLOAD_URL} > $@
 	chmod +x $@
 
 # Download and extract geth evm tool.
 ${EVM}:
 	mkdir -p ${TMP_DIR}
-	curl https://gethstore.blob.core.windows.net/builds/geth-alltools-linux-amd64-1.10.13-7a0c19f8.tar.gz > ${TMP_DIR}/geth-alltools.tar.gz
+	curl ${EVM_DOWNLOAD_URL} > ${TMP_DIR}/geth-alltools.tar.gz
 	tar -xz -f ${TMP_DIR}/geth-alltools.tar.gz -C ${TMP_DIR}
 	mkdir -p $(dir $@)
 	mv ${TMP_DIR}/geth-alltools-*/evm $@
