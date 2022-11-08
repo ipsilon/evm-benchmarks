@@ -39,20 +39,16 @@ outputs := $(sources:${SRC_DIR}/%.yml=${OUT_DIR}/%.json)
 
 all: ${outputs}
 
-# Create and patch the retesteth configuration.
-${RETESTETH_CONFIG_DIR}:
-	@echo Generating retesteth config dir at $@
-	${RETESTETH} -- --datadir $@ 2>/dev/null >/dev/null || true
-	@echo Patching t8ntool config with '${EVM}'
-	sed -i 's|evm|$(abspath ${EVM})|g' $@/t8ntool/start.sh
-
 # Generate the State Test fillers out of benchmark source files.
 ${TMP_DIR}/%Filler.yml: ${SRC_DIR}/%.yml
 	mkdir -p $(dir $@)
 	./evmbench.py build-source $< -o $@
 
+# Add local bin dir to PATH so the evm tool can be found by retesteth
+export PATH := $(BIN_DIR):$(PATH)
+
 # Generate the State Tests for benchmarks using previously generated fillers.
-${OUT_DIR}/%.json: ${TMP_DIR}/%Filler.yml ${RETESTETH_CONFIG_DIR}
+${OUT_DIR}/%.json: ${TMP_DIR}/%Filler.yml
 	${RETESTETH} -t GeneralStateTests -- --datadir ${RETESTETH_CONFIG_DIR} --testpath . --filltests --forceupdate --clients t8ntool --testfile $< --outfile $@
 
 clean:
