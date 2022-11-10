@@ -49,47 +49,49 @@ def dry_decode(d: str) -> str:
 # https://ethereum-tests.readthedocs.io/en/latest/test_filler/state_filler.html
 def build_source(src_file, out_file):
     import yaml
+    import pathlib
 
+    test_name = pathlib.Path(src_file.name).stem  # State Test convention: file name matches dict key.
     document = yaml.load(src_file, Loader=yaml.SafeLoader)
+    test = document[test_name]
 
-    for test in document.values():
-        env = test.setdefault('env', {})
-        env.setdefault('currentBaseFee', BASE_FEE)
-        env.setdefault('currentCoinbase', COINBASE)
-        env.setdefault('currentDifficulty', 1)
-        env.setdefault('currentGasLimit', GAS_LIMIT)
-        env.setdefault('currentNumber', 1)
-        env.setdefault('currentTimestamp', 1638453897)
-        env.setdefault('previousHash', '0x5e20a0453cecd065ea59c37ac63e079ee08998b6045136a8ce6635c7912ec0b6')
+    env = test.setdefault('env', {})
+    env.setdefault('currentBaseFee', BASE_FEE)
+    env.setdefault('currentCoinbase', COINBASE)
+    env.setdefault('currentDifficulty', 1)
+    env.setdefault('currentGasLimit', GAS_LIMIT)
+    env.setdefault('currentNumber', 1)
+    env.setdefault('currentTimestamp', 1638453897)
+    env.setdefault('previousHash', '0x5e20a0453cecd065ea59c37ac63e079ee08998b6045136a8ce6635c7912ec0b6')
 
-        pre = test['pre']
-        pre.setdefault(ORIGIN, {}).setdefault('balance', GAS_LIMIT * BASE_FEE)
-        for account in pre.values():
-            account.setdefault('balance', 0)
-            account.setdefault('code', '')
-            account.setdefault('nonce', 0)
-            account.setdefault('storage', {})
+    pre = test['pre']
+    pre.setdefault(ORIGIN, {}).setdefault('balance', GAS_LIMIT * BASE_FEE)
+    for account in pre.values():
+        account.setdefault('balance', 0)
+        account.setdefault('code', '')
+        account.setdefault('nonce', 0)
+        account.setdefault('storage', {})
 
-        tx = test['transaction']
-        tx.setdefault('gasLimit', [GAS_LIMIT])
-        tx.setdefault('value', [0])
-        tx.setdefault('nonce', 0)
-        tx.setdefault('gasPrice', BASE_FEE)
-        tx.setdefault('secretKey', ORIGIN_PRIV_KEY)
+    tx = test['transaction']
+    tx.setdefault('gasLimit', [GAS_LIMIT])
+    tx.setdefault('value', [0])
+    tx.setdefault('nonce', 0)
+    tx.setdefault('gasPrice', BASE_FEE)
+    tx.setdefault('secretKey', ORIGIN_PRIV_KEY)
 
-        expect = []
-        for i, data in enumerate(tx['data']):
-            assert data.startswith(':label')
-            label_end = data.index(' ', len(':label '))
-            label = data[0:label_end]
-            expect.append({
-                'indexes': {'data': label, 'gas': -1, 'value': -1},
-                'network': [NETWORK],
-                'result': {}
-            })
-            tx['data'][i] = dry_decode(data)
-        assert 'expect' not in test
-        test['expect'] = expect
+    expect = []
+    for i, data in enumerate(tx['data']):
+        assert data.startswith(':label')
+        label_end = data.index(' ', len(':label '))
+        label = data[0:label_end]
+        expect.append({
+            'indexes': {'data': label, 'gas': -1, 'value': -1},
+            'network': [NETWORK],
+            'result': {}
+        })
+        tx['data'][i] = dry_decode(data)
+    assert 'expect' not in test
+    test['expect'] = expect
 
     yaml.dump(document, out_file, sort_keys=False)
 
