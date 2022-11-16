@@ -1,17 +1,17 @@
 {
-    "mstore_stresstest" : {
+    "structarray_alloc" : {
         "_info" : {
             "comment" : "",
             "filling-rpc-server" : "evm version 1.10.25-stable-69568c55",
             "filling-tool-version" : "retesteth-0.2.2-testinfo+commit.766b4629.Linux.g++",
-            "generatedTestHash" : "c048dd0f07149781ecf28a37168370957c0d808baf7b832f69ed81ad70b17c78",
+            "generatedTestHash" : "0b04ffa1b5bf9654d39d45e4ffbea211b45543d991f4d89a8c7b504507934760",
             "labels" : {
                 "0" : "getNftsRank"
             },
             "lllcversion" : "Error getting LLLC Version",
             "solidity" : "Error getting solc Version",
-            "source" : "tmp/main/mstore_stresstestFiller.yml",
-            "sourceHash" : "ae2056c3e950acdde487d00371db7dd183d7e237f5f902f02de991acd7baed5d"
+            "source" : "tmp/main/structarray_allocFiller.yml",
+            "sourceHash" : "cf835b4a5671119f626b82d5f82a96abd7083ab19849545835eabff983fc42bf"
         },
         "env" : {
             "currentBaseFee" : "0x01",
