@@ -1,3 +1,7 @@
+# This example case (https://github.com/NomicFoundation/hardhat/issues/3316) is about creating
+# Solidity memory arrays of structs. What that boils down to is a number of MSTOREs 
+# for clearing out the allocated memory (https://github.com/ethereum/solidity/issues/13218) (as it could be dirty).
+
 structarray_alloc:
   pre:
     '0xbe7c43a580000000000000000000000000000001':
