@@ -17,6 +17,9 @@ SRC_DIR := src
 # Directory for benchmark output files (JSON State Tests)
 OUT_DIR := benchmarks
 
+# Directory for generated JSON Blockchain Tests
+OUT_BLOCKCHAIN_TEST_DIR := blockchain_tests
+
 # Place for intermediary files
 TMP_DIR := tmp
 
@@ -32,12 +35,14 @@ RETESTETH := ${BIN_DIR}/retesteth
 
 sources := $(wildcard src/*/*.yml)
 outputs := $(sources:${SRC_DIR}/%.yml=${OUT_DIR}/%.json)
+outputs_blockchain := $(sources:${SRC_DIR}/%.yml=${OUT_BLOCKCHAIN_TEST_DIR}/%.json)
 
 # Do not remove any intermediate files.
 # Make considers %Filler.yml intermediate files, but we want to keep them for inspection.
 .SECONDARY:
 
 all: ${outputs}
+blockchain_tests: ${outputs_blockchain}
 
 # Generate the State Test fillers out of benchmark source files.
 ${TMP_DIR}/%Filler.yml: ${SRC_DIR}/%.yml
@@ -50,6 +55,9 @@ export PATH := $(BIN_DIR):$(PATH)
 # Generate the State Tests for benchmarks using previously generated fillers.
 ${OUT_DIR}/%.json: ${TMP_DIR}/%Filler.yml
 	${RETESTETH} -t GeneralStateTests -- --datadir ${RETESTETH_CONFIG_DIR} --testpath . --filltests --forceupdate --clients t8ntool --testfile $< --outfile $@
+
+${OUT_BLOCKCHAIN_TEST_DIR}/%.json: ${TMP_DIR}/%Filler.yml
+	${RETESTETH} -t GeneralStateTests -- --datadir ${RETESTETH_CONFIG_DIR} --testpath . --fillchain --forceupdate --clients t8ntool --testfile $< --outfile $@
 
 clean:
 	rm -rf ${TMP_DIR}
